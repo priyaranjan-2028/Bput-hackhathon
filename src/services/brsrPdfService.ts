@@ -3,6 +3,7 @@ import { MEIL_ORG, esgParameters, subsidiaries as seedSubsidiaries } from '../da
 import { ProjectUserSubmission } from '../types/projectUser';
 import { getAdminConsolidationRecords } from './adminDemoDataService';
 import { MEIL_STORAGE_KEYS, readStoredValue, writeStoredValue } from './localStorageService';
+import type { PDFFont, PDFPage } from 'pdf-lib';
 
 export interface BRSRIndicatorRow { principle: string; indicator: string; value: string; unit: string; status: string; evidence: string; }
 export interface FullBRSRReport extends BRSRReport {
@@ -86,98 +87,99 @@ export function buildFullBRSRReport(reportingYear: string): FullBRSRReport {
   return report;
 }
 
-type PdfLine = { text: string; size?: number; bold?: boolean; color?: [number, number, number] };
-const safeAscii = (text: string) => text.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const clean = (value: string) => value.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim();
 
-function wrap(text: string, maxChars = 92): string[] {
-  const words = text.split(/\s+/); const lines: string[] = []; let line = '';
-  for (const word of words) { if (line && `${line} ${word}`.length > maxChars) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word; }
-  if (line) lines.push(line); return lines.length ? lines : [''];
-}
+export async function createBRSRPdf(report: FullBRSRReport): Promise<Uint8Array> {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const templateUrl = `${import.meta.env.BASE_URL}documents/MEIL_BRSR_FY2025-26_Comprehensive_Draft.pdf`;
+  const response = await fetch(templateUrl);
+  if (!response.ok) throw new Error('The MEIL BRSR template could not be loaded.');
+  const document = await PDFDocument.load(await response.arrayBuffer());
+  const regular = await document.embedFont(StandardFonts.Helvetica);
+  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const pages: PDFPage[] = [];
+  let page: PDFPage;
+  let y = 0;
+  let pageNumber = 0;
+  const margin = 48;
+  const bodyWidth = 595 - margin * 2;
+  const bodyColor = rgb(0.12, 0.17, 0.22);
+  const teal = rgb(0.02, 0.38, 0.36);
+  const navy = rgb(0.04, 0.15, 0.27);
 
-export function createBRSRPdf(report: FullBRSRReport): string {
-  const lines: PdfLine[] = [];
-  const cover = (title: string) => lines.push({ text: title, size: 18, bold: true, color: [0.04, 0.18, 0.29] });
-  const heading = (title: string) => lines.push({ text: title, size: 13, bold: true, color: [0.02, 0.36, 0.35] });
-  const paragraph = (text: string) => wrap(text).forEach(line => lines.push({ text: line, size: 9 }));
-  cover('BUSINESS RESPONSIBILITY & SUSTAINABILITY REPORT');
-  lines.push({ text: 'SEBI BRSR | Consolidated reporting draft', size: 11, bold: true });
-  paragraph(`${report.company['Entity name']} | ${report.reportingYear} | Generated ${report.generatedAt}`);
-  paragraph(`Consolidation reference: ${report.consolidationId}`);
-  paragraph('This report includes available verified information from the MEIL reporting workspace. Items marked Not provided require company input and must be completed and reviewed before statutory filing. This generated document is a draft, not an assurance opinion.');
-  heading('REPORT CONTENTS');
-  paragraph('Section A - General Disclosures'); paragraph('Section B - Management and Process Disclosures'); paragraph('Section C - Principle-wise Performance Disclosures: Essential and Leadership indicators');
+  const nextPage = () => {
+    page = document.addPage([595, 842]); pages.push(page); pageNumber += 1; y = 790;
+    page.drawText('MEIL | ESG / BRSR REPORTING', { x: margin, y: 816, size: 8, font: bold, color: teal });
+    page.drawLine({ start: { x: margin, y: 806 }, end: { x: 595 - margin, y: 806 }, thickness: 0.8, color: teal });
+  };
+  const ensureSpace = (height: number) => { if (!pages.length || y - height < 58) nextPage(); };
+  const wrap = (text: string, size: number, font: PDFFont) => {
+    const words = clean(text).split(' '); const result: string[] = []; let line = '';
+    for (const word of words) { const candidate = line ? `${line} ${word}` : word; if (font.widthOfTextAtSize(candidate, size) > bodyWidth && line) { result.push(line); line = word; } else line = candidate; }
+    if (line) result.push(line); return result.length ? result : [''];
+  };
+  const paragraph = (text: string, options: {size?:number; bold?:boolean; color?:typeof bodyColor; indent?:number} = {}) => {
+    const size = options.size ?? 9; const font = options.bold ? bold : regular; const lines = wrap(text, size, font); const lineHeight = size + 4;
+    ensureSpace(lines.length * lineHeight + 3);
+    for (const line of lines) { page.drawText(line, { x: margin + (options.indent ?? 0), y: y - lineHeight, size, font, color: options.color ?? bodyColor, maxWidth: bodyWidth - (options.indent ?? 0) }); y -= lineHeight; }
+    y -= 3;
+  };
+  const heading = (text: string, level: 1|2 = 1) => {
+    const size = level === 1 ? 15 : 11; ensureSpace(size + 18); y -= 7;
+    page.drawText(clean(text), { x: margin, y: y - size, size, font: bold, color: level === 1 ? navy : teal, maxWidth: bodyWidth });
+    y -= size + 9;
+    if (level === 1) { page.drawLine({ start: {x:margin,y}, end:{x:595-margin,y}, thickness:0.5,color:rgb(0.82,0.87,0.89)}); y -= 8; }
+  };
+  const keyValue = (key: string, value: string) => paragraph(`${key}: ${value}`, {size:9});
+  const indicator = (row: BRSRIndicatorRow) => {
+    paragraph(`${row.indicator} | ${row.value} ${row.unit} | ${row.status}`, {size:9,bold:true,indent:10});
+    paragraph(`Evidence: ${row.evidence}`, {size:8,indent:20});
+  };
+
+  nextPage();
+  heading('POPULATED DATA APPENDIX', 1);
+  paragraph('This appendix is attached to the MEIL Comprehensive BRSR Draft template supplied for this reporting period. It brings in values available in the reporting workspace while preserving the source template pages.', {size:10});
+  paragraph(`Entity: ${report.company['Entity name']} | Financial year: ${report.reportingYear} | Report ID: ${report.id}`);
+  paragraph(`Sealed consolidation: ${report.consolidationId} | Generated: ${report.generatedAt}`);
+  paragraph('Draft status: not a verified final company disclosure. The original template remains unchanged. Fields without saved company data remain marked as required in the source template; this appendix does not invent values or claim statutory completeness.', {size:9,bold:true,color:teal});
 
   heading('SECTION A - GENERAL DISCLOSURES');
-  Object.entries(report.company).forEach(([key, value]) => paragraph(`${key}: ${value}`));
-  paragraph(`Consolidated GHG emissions: Scope 1 ${formatted(report.scope1Total)} tCO2e; Scope 2 ${formatted(report.scope2Total)} tCO2e; Scope 3 ${formatted(report.scope3Total)} tCO2e; total ${formatted(report.totalCO2e)} tCO2e.`);
-  heading('Subsidiary reporting boundary');
-  if (report.subsidiaries.length) report.subsidiaries.forEach(item => paragraph(`${item.entityName}: Scope 1 ${formatted(item.scope1Total)}, Scope 2 ${formatted(item.scope2Total)}, Scope 3 ${formatted(item.scope3Total)}, total ${formatted(item.totalCO2e)} tCO2e; ${item.submissionCount || 0} verified parameter submissions.`));
-  else paragraph('No verified subsidiary-level detail was available for this period.');
+  Object.entries(report.company).forEach(([key,value])=>keyValue(key,value));
+  heading('Company consolidated GHG summary',2);
+  keyValue('Scope 1 emissions',`${formatted(report.scope1Total)} tCO2e`);
+  keyValue('Scope 2 emissions',`${formatted(report.scope2Total)} tCO2e`);
+  keyValue('Scope 3 emissions',`${formatted(report.scope3Total)} tCO2e`);
+  keyValue('Total Scope 1 + Scope 2 + Scope 3',`${formatted(report.totalCO2e)} tCO2e`);
+  heading('Verified subsidiary breakdown',2);
+  if(report.subsidiaries.length) report.subsidiaries.forEach(item=>paragraph(`${item.entityName} | Scope 1 ${formatted(item.scope1Total)} tCO2e | Scope 2 ${formatted(item.scope2Total)} tCO2e | Scope 3 ${formatted(item.scope3Total)} tCO2e | Total ${formatted(item.totalCO2e)} tCO2e | ${item.submissionCount||0} verified submissions`,{size:8}));
+  else paragraph('No verified subsidiary data was available for this reporting period.');
 
   heading('SECTION B - MANAGEMENT AND PROCESS DISCLOSURES');
-  paragraph('The responses below are not configured in the current workspace and require confirmation by the reporting company.');
-  report.sectionB.forEach(item => paragraph(`${item.disclosure}: ${item.response}`));
+  paragraph('These disclosures were not captured in the reporting workspace at generation time. Enter approved company responses in the source template before filing.');
+  report.sectionB.forEach(item=>keyValue(item.disclosure,item.response));
 
   heading('SECTION C - PRINCIPLE-WISE PERFORMANCE DISCLOSURES');
-  paragraph('The workspace currently collects operational indicators listed below. Indicator classification follows this application workflow: Scope 1 and Scope 2 are shown under Essential Indicators; Scope 3 and additional Section C metrics are shown under Leadership Indicators. Complete the applicable SEBI indicator responses for all nine principles before filing.');
-  const principleNames = [
-    'Principle 1 - Ethical, transparent and accountable conduct', 'Principle 2 - Sustainable and safe goods and services',
-    'Principle 3 - Employee well-being', 'Principle 4 - Stakeholder responsiveness', 'Principle 5 - Human rights',
-    'Principle 6 - Protecting and restoring the environment', 'Principle 7 - Responsible public and regulatory policy',
-    'Principle 8 - Inclusive growth and equitable development', 'Principle 9 - Consumer value',
-  ];
-  for (const principle of principleNames) {
-    heading(principle);
-    const number = principle.match(/Principle (\d+)/)?.[1] || '';
-    const essential = report.essentialIndicators.filter(row => row.principle.includes(number));
-    const leadership = report.leadershipIndicators.filter(row => row.principle.includes(number));
-    lines.push({ text: 'Essential Indicators', size: 10, bold: true });
-    if (essential.length) essential.forEach(row => paragraph(`${row.indicator}: ${row.value} ${row.unit}; ${row.status}; Evidence: ${row.evidence}`));
-    else paragraph('No principle-specific essential indicator data configured; response not provided.');
-    lines.push({ text: 'Leadership Indicators', size: 10, bold: true });
-    if (leadership.length) leadership.forEach(row => paragraph(`${row.indicator}: ${row.value} ${row.unit}; ${row.status}; Evidence: ${row.evidence}`));
-    else paragraph('No principle-specific leadership indicator data configured; response not provided.');
+  paragraph('The available operational metrics are classified for this application workflow: Scope 1 and Scope 2 under Essential Indicators; Scope 3 and additional Section C data under Leadership Indicators. Confirm indicator mapping and applicability against the current SEBI format before filing.');
+  for(let principle=1;principle<=9;principle++) {
+    heading(`PRINCIPLE ${principle}`,2);
+    const essential=report.essentialIndicators.filter(row=>row.principle.toLowerCase().includes(`principle ${principle}`));
+    const leadership=report.leadershipIndicators.filter(row=>row.principle.toLowerCase().includes(`principle ${principle}`));
+    paragraph('Essential Indicators',{size:9,bold:true,color:teal,indent:5});
+    if(essential.length) essential.forEach(indicator); else paragraph('Data required - no saved response for this principle.',{size:8,indent:10});
+    paragraph('Leadership Indicators',{size:9,bold:true,color:teal,indent:5});
+    if(leadership.length) leadership.forEach(indicator); else paragraph('Data required - no saved response for this principle.',{size:8,indent:10});
   }
-  heading('METHODOLOGY AND COMPLETION NOTE');
+  heading('Data provenance and completion notes');
   paragraph(report.methodology);
-  paragraph('Values are aggregated from verified Level 3 records in the sealed consolidation. Uncollected statutory disclosures are explicitly identified as Not provided; no values have been inferred. Confirm units, boundaries, prior-year comparatives, policy disclosures and assurance requirements with the company reporting team.');
+  paragraph('Source evidence filenames and verification state are included with the relevant indicators above. Missing prior-year figures, management narratives, legal applicability, assurance details, and other company disclosures remain incomplete until supplied and approved by MEIL.');
 
-  const pages: PdfLine[][] = []; let page: PdfLine[] = []; let used = 0;
-  for (const item of lines) { const height = item.size && item.size >= 13 ? 28 : 16; if (used + height > 700) { pages.push(page); page = []; used = 0; } page.push(item); used += height; }
-  if (page.length) pages.push(page);
-  const objects: string[] = [];
-  const add = (value: string) => { objects.push(value); return objects.length; };
-  const catalogId = add(''); const pagesId = add('');
-  const regularFontId = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const boldFontId = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-  const pageIds: number[] = [];
-  pages.forEach((pageLines, pageIndex) => {
-    let y = 790; const commands: string[] = ['0.12 w'];
-    commands.push('0.04 0.18 0.29 rg 40 812 515 1 re f');
-    pageLines.forEach(item => {
-      const size = item.size || 9; const color = item.color || [0.12, 0.16, 0.2];
-      y -= size >= 18 ? 30 : size >= 13 ? 24 : size >= 10 ? 18 : 14;
-      commands.push(`${color[0]} ${color[1]} ${color[2]} rg BT /${item.bold ? 'F2' : 'F1'} ${size} Tf 42 ${y} Td (${safeAscii(item.text)}) Tj ET`);
-    });
-    commands.push(`0.4 0.4 0.4 rg BT /F1 8 Tf 42 28 Td (${safeAscii(`${report.id} | ${report.reportingYear} | Page ${pageIndex + 1} of ${pages.length}`)}) Tj ET`);
-    const stream = commands.join('\n');
-    const contentId = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    const pageId = add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-    pageIds.push(pageId);
-  });
-  objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
-  objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
-  let pdf = '%PDF-1.4\n'; const offsets = [0];
-  objects.forEach((object, index) => { offsets.push(pdf.length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
-  const xrefOffset = pdf.length; pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return pdf;
+  pages.forEach((pdfPage,index)=>pdfPage.drawText(`${report.id} | FY ${report.reportingYear} | Data appendix page ${index+1} of ${pages.length}`,{x:margin,y:28,size:7,font:regular,color:rgb(0.4,0.45,0.48)}));
+  return document.save();
 }
 
-export function downloadBRSRPdf(report: FullBRSRReport) {
-  const blob = new Blob([createBRSRPdf(report)], { type: 'application/pdf' });
+export async function downloadBRSRPdf(report: FullBRSRReport) {
+  const bytes = await createBRSRPdf(report);
+  const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
   anchor.href = url; anchor.download = `${report.id}.pdf`; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);

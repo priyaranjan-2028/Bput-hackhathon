@@ -19,7 +19,7 @@ export default function LoginPage() {
     { role: UserRole.MEIL_ADMIN, label: 'MEIL Admin', email: 'admin@meil-demo.com' },
     { role: UserRole.SUBSIDIARY_SUPERVISOR, label: 'Subsidiary Supervisor', email: 'subsupervisor@demo.com' },
     { role: UserRole.BU_SUPERVISOR, label: 'Business Unit Supervisor', email: 'busupervisor@demo.com' },
-    ...[...users, ...readStoredValue<User[]>('meil_project_supervisors', [])].filter((account, index, all) => account.role === UserRole.PROJECT_SUPERVISOR && all.findIndex(other => other.id === account.id) === index).map(account => ({ role: account.role, label: `Project Supervisor · ${account.name}`, email: account.email })),
+    ...[...users, ...readStoredValue<User[]>('meil_project_supervisors', []), ...readStoredValue<User[]>('meil_subsidiary_supervisors', [])].filter((account, index, all) => [UserRole.PROJECT_SUPERVISOR,UserRole.SUBSIDIARY_SUPERVISOR].includes(account.role) && all.findIndex(other => other.id === account.id) === index && account.email !== 'subsupervisor@demo.com').map(account => ({ role: account.role, label: `${account.role===UserRole.SUBSIDIARY_SUPERVISOR?'Subsidiary Supervisor':'Project Supervisor'} · ${account.name}`, email: account.email })),
     ...users.filter(account => account.role === UserRole.PROJECT_USER).map(account => ({ role: account.role, label: `Project User · ${account.name}`, email: account.email })),
   ];
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
     else setError('The selected demo account is unavailable. Please try another account.');
   };
 
-  return <main className="h-dvh overflow-hidden bg-[#f4f7fb] px-3 py-3 sm:px-6 sm:py-5 lg:px-10">
+  return <main className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[#f4f7fb] px-3 py-3 sm:px-6 sm:py-5 lg:px-10">
     <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col">
       <header className="flex shrink-0 items-center justify-between">
         <Link to="/" className="inline-flex items-center gap-3" aria-label="MEIL ESG Platform home">
@@ -51,24 +51,26 @@ export default function LoginPage() {
       </header>
 
       <div className="my-3 grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,0.46fr)_minmax(0,0.54fr)] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_24px_80px_-32px_rgba(15,35,65,0.28)] sm:my-5 sm:rounded-[2rem] lg:grid-cols-[1.04fr_0.96fr] lg:grid-rows-1">
-        <section className="relative isolate flex min-h-0 flex-col justify-between overflow-y-auto overscroll-contain bg-gradient-to-br from-[#071b31] via-[#0c2b43] to-[#075a58] p-5 text-white sm:p-7 lg:overflow-hidden lg:p-12">
-          <div aria-hidden="true" className="absolute -right-24 -top-24 -z-10 h-80 w-80 rounded-full border border-white/10 bg-white/[0.03]"/><div aria-hidden="true" className="absolute -bottom-44 -left-28 -z-10 h-[28rem] w-[28rem] rounded-full border border-white/10 bg-white/[0.03]"/>
-          <div>
+        <section className="relative isolate flex min-h-0 flex-col justify-between overflow-y-auto overscroll-contain bg-navy-950 p-5 text-white sm:p-7 lg:overflow-hidden lg:p-12 [@media(max-height:850px)]:lg:p-7">
+          <img src="/images/login-highway-interchange.jpg" alt="Aerial view of a green landscape crossed by a highway interchange" className="absolute inset-0 z-0 h-full w-full object-cover object-center" />
+          <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-br from-[#071b31]/90 via-[#0c2b43]/80 to-[#075a58]/75" />
+          <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 z-[2] h-80 w-80 rounded-full border border-white/10 bg-white/[0.03]"/><div aria-hidden="true" className="pointer-events-none absolute -bottom-44 -left-28 z-[2] h-[28rem] w-[28rem] rounded-full border border-white/10 bg-white/[0.03]"/>
+          <div className="relative z-10">
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-200"><ShieldCheck size={14}/> Secure reporting workspace</span>
-            <h1 className="mt-3 max-w-xl text-2xl font-bold leading-tight tracking-tight sm:mt-7 sm:text-4xl xl:text-[2.75rem]">One clear view of your ESG reporting.</h1>
-            <p className="mt-2 max-w-lg text-xs leading-5 text-slate-300 sm:mt-4 sm:text-base sm:leading-6">Bring project evidence, reviews, and company disclosures together in a structured workflow for MEIL sustainability reporting.</p>
+            <h1 className="mt-3 max-w-xl text-2xl font-bold leading-tight tracking-tight sm:mt-7 sm:text-4xl xl:text-[2.75rem] [@media(max-height:850px)]:lg:mt-4 [@media(max-height:850px)]:lg:text-4xl">One clear view of your ESG reporting.</h1>
+            <p className="mt-2 max-w-lg text-xs leading-5 text-slate-300 sm:mt-4 sm:text-base sm:leading-6 [@media(max-height:850px)]:lg:mt-2 [@media(max-height:850px)]:lg:text-sm [@media(max-height:850px)]:lg:leading-5">Bring project evidence, reviews, and company disclosures together in a structured workflow for MEIL sustainability reporting.</p>
 
-            <div className="mt-4 space-y-3 sm:mt-9 sm:space-y-4">
+            <div className="mt-4 space-y-3 sm:mt-9 sm:space-y-4 [@media(max-height:850px)]:lg:mt-4 [@media(max-height:850px)]:lg:space-y-3">
               <Feature icon={<Building2 size={18}/>} title="Connected organization" desc="Follow submissions from projects through business units and subsidiaries."/>
               <Feature icon={<Workflow size={18}/>} title="Review at every level" desc="Track verification decisions and supporting files across the reporting chain."/>
               <Feature icon={<FileCheck2 size={18}/>} title="Consolidated reporting" desc="Prepare company disclosures from the verified information available to your role."/>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-2xl border border-white/10 bg-white/[0.06] py-3 sm:mt-10 sm:py-4">
+          <div className="relative z-10 mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-2xl border border-white/15 bg-navy-950/35 py-3 backdrop-blur-sm sm:mt-10 sm:py-4 [@media(max-height:850px)]:lg:mt-4 [@media(max-height:850px)]:lg:py-3">
             <MiniStat label="Sections" value="A · B · C"/><MiniStat label="Principles" value="01—09"/><MiniStat label="Evidence" value="Traceable"/>
           </div>
-          <p className="mt-2 text-[10px] text-slate-400 sm:mt-6 sm:text-[11px]">MEIL ESG &amp; BRSR · Role-based access</p>
+          <div className="relative z-10 mt-2 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-300 sm:mt-6 sm:text-[11px] [@media(max-height:850px)]:lg:mt-2"><span>MEIL ESG &amp; BRSR · Role-based access</span><a href="https://unsplash.com/photos/aerial-view-of-a-highway-interchange-with-cars-glnxs44jWSc" target="_blank" rel="noreferrer" className="text-slate-300/80 underline decoration-white/30 underline-offset-2 hover:text-white">Photo: Jakub Żerdzicki / Unsplash</a></div>
         </section>
 
         <section className="min-h-0 overflow-y-auto overscroll-contain px-5 py-7 sm:px-10 sm:py-9 lg:px-12">
@@ -97,7 +99,7 @@ export default function LoginPage() {
           </div>
         </section>
       </div>
-      <footer className="pb-2 text-center text-[11px] text-slate-400">© MEIL ESG &amp; BRSR Reporting Platform</footer>
+      <footer className="shrink-0 pb-1 text-center text-[11px] text-slate-400">© MEIL ESG &amp; BRSR Reporting Platform</footer>
     </div>
   </main>;
 }

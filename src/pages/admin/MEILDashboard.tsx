@@ -7,7 +7,7 @@ import KPICard from '../../components/dashboard/KPICard';
 import EvidenceFileLink from '../../components/evidence/EvidenceFileLink';
 import { createAdminDemoData, getAdminConsolidationRecords, getAdminEvidence, getDemoParameterInspection } from '../../services/adminDemoDataService';
 import { readStoredValue } from '../../services/localStorageService';
-import { Building2, FolderTree, FileBarChart, ShieldCheck, Layers, ArrowRight, Sparkles, FileSearch, CheckCircle2, Download, LoaderCircle } from 'lucide-react';
+import { Building2, FolderTree, FileBarChart, ShieldCheck, Layers, ArrowRight, Sparkles, FileSearch, CheckCircle2, Download, LoaderCircle, Plus, UserRoundPlus } from 'lucide-react';
 
 function downloadData(filename: string, content: string, type = 'text/csv;charset=utf-8') {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -67,6 +67,8 @@ export default function MEILDashboard() {
           <button onClick={handleGenerate} disabled={generating} className="btn-primary flex items-center gap-2 bg-esg-500 px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-esg-600 disabled:opacity-70">{generating ? <LoaderCircle size={16} className="animate-spin"/> : <Sparkles size={16}/>} {generating ? 'Preparing sample data…' : 'Generate Sample Data'}</button>
           <Link to="/admin/brsr-report" className="btn-secondary flex items-center gap-2 border-white/20 bg-white/10 px-5 py-3 text-xs font-semibold text-white hover:bg-white/20"><FileBarChart size={16}/> Generate BRSR Report</Link>
           <Link to="/admin/evidence-explorer" className="btn-secondary flex items-center gap-2 border-white/20 bg-white/10 px-5 py-3 text-xs font-semibold text-white hover:bg-white/20"><FileSearch size={16}/> Evidence Explorer</Link>
+          <Link to="/admin/subsidiaries?action=add-subsidiary" className="btn-secondary flex items-center gap-2 border-white/20 bg-white/10 px-4 py-3 text-xs font-semibold text-white hover:bg-white/20"><Plus size={15}/> Add subsidiary</Link>
+          <Link to="/admin/subsidiaries?action=add-supervisor" className="btn-secondary flex items-center gap-2 border-white/20 bg-white/10 px-4 py-3 text-xs font-semibold text-white hover:bg-white/20"><UserRoundPlus size={15}/> Add subsidiary supervisor</Link>
         </div>
       </div>
       {resultMessage && <div className="relative z-10 mt-5 flex items-start gap-2 rounded-xl border border-emerald-300/30 bg-emerald-400/10 p-3 text-xs text-emerald-100"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{resultMessage}</div>}

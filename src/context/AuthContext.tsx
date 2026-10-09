@@ -3,7 +3,7 @@ import { User, UserRole, AuthState } from '../types';
 import { users as mockUsers } from '../data/mockData';
 import { readStoredValue } from '../services/localStorageService';
 
-const getAllLoginUsers = (): User[] => [...mockUsers, ...readStoredValue<User[]>('meil_project_users', []), ...readStoredValue<User[]>('meil_project_supervisors', [])].filter((candidate, index, all) => all.findIndex(other => other.id === candidate.id) === index);
+const getAllLoginUsers = (): User[] => [...mockUsers, ...readStoredValue<User[]>('meil_project_users', []), ...readStoredValue<User[]>('meil_project_supervisors', []), ...readStoredValue<User[]>('meil_bu_supervisors', []), ...readStoredValue<User[]>('meil_subsidiary_supervisors', [])].filter((candidate, index, all) => all.findIndex(other => other.id === candidate.id) === index);
 const findLoginUser = (email: string, password: string): User | undefined => {
   const normalizedEmail = email.trim().toLowerCase();
   const account = getAllLoginUsers().find(candidate => candidate.email.toLowerCase() === normalizedEmail && candidate.password === password);
