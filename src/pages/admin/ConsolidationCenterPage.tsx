@@ -12,11 +12,15 @@ export default function ConsolidationCenterPage() {
   const [progress, setProgress] = useState(0);
   const [sealing, setSealing] = useState(false);
   const [notice, setNotice] = useState('');
-  const [master, setMaster] = useState<ConsolidationRecord | undefined>(() => readStoredValue<ConsolidationRecord[]>('meil_consolidations', []).find(record => record.level === 'MEIL' && record.reportingPeriod === 'FY 2025-26'));
+  const [master, setMaster] = useState<ConsolidationRecord | undefined>(() => getAdminConsolidationRecords().find(record => record.level === 'MEIL' && record.reportingPeriod === 'FY 2025-26'));
   const subsidiaries = getVerifiedSubsidiaryBatches(selectedPeriod);
   const scopeTotals = useMemo(() => subsidiaries.reduce((total, record) => ({ scope1: total.scope1 + record.scope1Total, scope2: total.scope2 + record.scope2Total, scope3: total.scope3 + record.scope3Total }), { scope1: 0, scope2: 0, scope3: 0 }), [subsidiaries]);
   const total = scopeTotals.scope1 + scopeTotals.scope2 + scopeTotals.scope3;
   const rows = [...records].sort((a,b) => b.consolidatedAt.localeCompare(a.consolidatedAt));
+
+  useEffect(() => {
+    setMaster(getAdminConsolidationRecords().find(record => record.level === 'MEIL' && record.reportingPeriod === selectedPeriod));
+  }, [selectedPeriod, records]);
 
   useEffect(() => { if (!sealing || progress >= 100) return; const timer = window.setTimeout(() => setProgress(value => Math.min(100, value + 10)), 140); return () => window.clearTimeout(timer); }, [sealing, progress]);
   useEffect(() => {

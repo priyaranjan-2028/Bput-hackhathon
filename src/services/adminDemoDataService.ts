@@ -139,5 +139,8 @@ export function getDemoParameterInspection(subsidiaryId: string): DemoParameterI
 }
 
 export function getVerifiedSubsidiaryBatches(period?: string): ConsolidationRecord[] {
-  return getAdminConsolidationRecords().filter(record => record.level === 'SUBSIDIARY' && record.status === SubmissionStatus.VERIFIED_LEVEL_3 && (!period || (record.reportingPeriod || record.period) === period));
+  // A subsidiary batch is eligible for group reporting once it has been forwarded
+  // to MEIL or verified at Level 3. Older seed data uses FORWARDED.
+  const eligibleStatuses: SubmissionStatus[] = [SubmissionStatus.VERIFIED_LEVEL_3, SubmissionStatus.FORWARDED];
+  return getAdminConsolidationRecords().filter(record => record.level === 'SUBSIDIARY' && eligibleStatuses.includes(record.status) && (!period || (record.reportingPeriod || record.period) === period));
 }
